@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSA 암호화/복호화</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+
+        input[type="number"] {
+            width: 150px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+    button {
+        margin: 10px 0;
+        padding: 5px 10px;
+        background-color: #4CAF50; /* 초록색 */
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+        background-color: #45a049; /* hover 시 더 짙은 초록색 */
+    }
+        #result, #process, #phiResult, #phiProcess {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            white-space: pre-wrap;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .checkbox-group {
+            margin: 10px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RSA 암호화/복호화</h1>
+        <div class="input-group">
+            <label for="p">소수 p:</label>
+            <input type="number" id="p">
+        </div>
+        <div class="input-group">
+            <label for="q">소수 q:</label>
+            <input type="number" id="q">
+        </div>
+        <button onclick="calculatePhi()">φ(n) 계산</button>
+
+        <div id="phiResult"></div>
+        <div id="phiProcess"></div>
+
+        <div class="input-group">
+            <label for="e">공개 지수 e:</label>
+            <input type="number" id="e">
+        </div>
+
+        <div class="input-group">
+            <label for="message">숫자 메시지:</label>
+            <input type="number" id="message">
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="encryptCheckbox"> 암호화 수행
+            <input type="checkbox" id="decryptCheckbox"> 복호화 수행
+        </div>
+
+        <button onclick="performRSA()">실행</button>
+
+        <div id="result"></div>
+        <div id="process"></div>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; justify-content: center;">
+        <button onclick="location.href='index.html'">메인 페이지로 돌아가기</button>
+    </div>
+
+    <script>
+        let n, e, d, phi;
+        let processLog = "";
+
+        function log(message) {
+            processLog += message + "\n";
+        }
+
+        function isPrime(num) {
+            if (num <= 1) return false;
+            for (let i = 2; i <= Math.sqrt(num); i++) {
+                if (num % i === 0) return false;
+            }
+            return true;
+        }
+
+        function gcd(a, b) {
+            return b === 0 ? a : gcd(b, a % b);
+        }
+
+        function modInverse(a, m) {
+            let m0 = m, t, q;
+            let x0 = 0, x1 = 1;
+
+            if (m == 1) return 0;
+
+            while (a > 1) {
+                q = Math.floor(a / m);
+                t = m;
+                m = a % m;
+                a = t;
+                t = x0;
+                x0 = x1 - q * x0;
+                x1 = t;
+            }
+
+            if (x1 < 0) x1 += m0;
+
+            return x1;
+        }
+
+        function calculatePhi() {
+            const p = parseInt(document.getElementById('p').value);
+            const q = parseInt(document.getElementById('q').value);
+
+            if (!isPrime(p) || !isPrime(q)) {
+                alert("p와 q는 모두 소수여야 합니다.");
+                return;
+            }
+
+            let phiProcess = `선택된 소수: p = ${p}, q = ${q}\n`;
+
+            n = p * q;
+            phiProcess += `n = p * q = ${p} * ${q} = ${n}\n`;
+
+            phi = (p - 1) * (q - 1);
+            phiProcess += `φ(n) = (p-1) * (q-1) = (${p-1}) * (${q-1}) = ${phi}`;
+
+            document.getElementById('phiResult').innerHTML = `φ(n) = ${phi}`;
+            document.getElementById('phiProcess').textContent = phiProcess;
+        }
+
+        function modPow(base, exponent, modulus) {
+            if (modulus === 1) return 0;
+            let result = 1;
+            base = base % modulus;
+            while (exponent > 0) {
+                if (exponent % 2 === 1) {
+                    result = (result * base) % modulus;
+                }
+                exponent = Math.floor(exponent / 2);
+                base = (base * base) % modulus;
+            }
+            return result;
+        }
+
+        function performRSA() {
+            processLog = "";
+            
+            if (!n || !phi) {
+                alert("먼저 φ(n)을 계산해주세요.");
+                return;
+            }
+
+            e = parseInt(document.getElementById('e').value);
+            if (e <= 1 || e >= phi || gcd(e, phi) !== 1) {
+                alert("유효하지 않은 e 값입니다. 1 < e < φ(n)이며 e와 φ(n)은 서로소여야 합니다.");
+                return;
+            }
+
+            d = modInverse(e, phi);
+            if (d === 0) {
+                alert("유효한 개인키를 생성할 수 없습니다.");
+                return;
+            }
+            log(`공개키: (${n}, ${e})`);
+            log(`개인키: (${n}, ${d})`);
+
+            const message = parseInt(document.getElementById('message').value);
+            
+            const encryptChecked = document.getElementById('encryptCheckbox').checked;
+            const decryptChecked = document.getElementById('decryptCheckbox').checked;
+
+            if (!encryptChecked && !decryptChecked) {
+                alert("암호화 또는 복호화를 선택하세요.");
+                return;
+            }
+
+            if (encryptChecked) {
+                if (message >= n) {
+                    alert("메시지는 n보다 작아야 합니다.");
+                    return;
+                }
+                log(`암호화할 메시지: M = ${message}`);
+                const encryptedMessage = modPow(message, e, n);
+                log("암호화 과정:");
+                log(`C ≡ M^e mod n`);
+                log(`C ≡ ${message}^${e} mod ${n}`);
+                log(`C ≡ ${encryptedMessage}`);
+                document.getElementById('result').innerHTML = `암호화된 메시지: ${encryptedMessage}`;
+            }
+
+            if (decryptChecked) {
+                if (message >= n) {
+                    alert("암호문은 n보다 작아야 합니다.");
+                    return;
+                }
+                log(`복호화할 암호문: C = ${message}`);
+                const decryptedMessage = modPow(message, d, n);
+                log("복호화 과정:");
+                log(`M ≡ C^d mod n`);
+                log(`M ≡ ${message}^${d} mod ${n}`);
+                log(`M ≡ ${decryptedMessage}`);
+                document.getElementById('result').innerHTML = `복호화된 메시지: ${decryptedMessage}`;
+            }
+
+            document.getElementById('process').textContent = processLog;
+        }
+
+        // 체크박스 이벤트 리스너
+        document.getElementById('encryptCheckbox').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('decryptCheckbox').checked = false;
+            }
+        });
+
+        document.getElementById('decryptCheckbox').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('encryptCheckbox').checked = false;
+            }
+        });
+    </script>
+</body>
+</html>
